@@ -1,0 +1,31 @@
+# OPTIONAL: an AI agent that works inside your GitHub repo.
+# Off by default. To enable:
+#   1. Move this file to .github/workflows/claude-agent.yml
+#   2. Install the Claude GitHub app on the repo (see Anthropic's Claude Code GitHub Actions docs)
+#   3. Add repo secret ANTHROPIC_API_KEY (API usage is billed separately from a Claude chat plan)
+# Then comment "@claude fix the build error in the latest run" on an issue or pull request.
+# It reads CLAUDE.md and .claude/agents/spliteasy-dev.md for project rules.
+name: Claude agent
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  issues:
+    types: [opened, assigned]
+
+jobs:
+  claude:
+    if: contains(github.event.comment.body, '@claude') || contains(github.event.issue.body, '@claude')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
