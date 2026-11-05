@@ -86,7 +86,7 @@ jobs:
       - name: Show signing certificates
         run: |
           echo "--- AAB (jar signature)" | tee -a build.log
-          keytool -printcert -jarfile build/app/outputs/bundle/release/app-release.aab 2>&1 | grep -E "Owner:|SHA256:" | tee -a build.log
+          keytool -printcert -jarfile build/app/outputs/bundle/release/app-release.aab 2>&1 | grep -E "Owner:|SHA1:|SHA256:" | tee -a build.log
           echo "--- APK (v2/v3 signature)" | tee -a build.log
           SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
           APKSIGNER=$(ls -d "$SDK"/build-tools/*/apksigner 2>/dev/null | sort -V | tail -1)
