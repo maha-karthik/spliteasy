@@ -1,0 +1,31 @@
+flowchart TD
+  classDef done fill:#14532d,stroke:#22c55e,color:#fff
+  classDef wip fill:#713f12,stroke:#f59e0b,color:#fff
+  classDef next fill:#1e293b,stroke:#64748b,color:#e2e8f0
+  classDef blue fill:#1e3a8a,stroke:#60a5fa,color:#fff
+  classDef pur fill:#4c1d95,stroke:#a78bfa,color:#fff
+  classDef rule fill:#7f1d1d,stroke:#f87171,color:#fff
+
+  A([Open SplitEasy]):::blue --> B[Create group + add members<br/>Stage 1: pick from contacts]:::done
+  B --> C[Add expense<br/>equal / weighted / exact, multi-payer]:::done
+  C --> D[(Local SQLite<br/>ID + updated_at on every record<br/>Stage 2a)]:::done
+  D --> E[Balances recomputed from raw rows<br/>Settle-up suggests who pays whom]:::done
+  E --> F{How is it paid?}:::blue
+  F -->|Cash / Bank / Other| G[Record settlement<br/>Stage 3a]:::next
+  F -->|UPI| H[Pay from app: GPay, PhonePe, Paytm, BHIM, UPI ID<br/>Stage 3c]:::next
+  H --> I[Share screenshot or paste SMS<br/>Stage 4]:::next
+  I --> J[OCR reads amount, UTR, date<br/>match to pending payment]:::done
+  J --> K{Duplicate UTR or image?}:::rule
+  K -->|Yes| L[Refused]:::rule
+  K -->|No| M[Recorded - matched<br/>counts in balance, badge shown]:::wip
+  G --> M
+  M --> N{Receiver confirms, or same UTR from both sides?}:::blue
+  N -->|Yes| O[Verified]:::done
+  N -->|Disputed| P[Excluded from balance]:::rule
+  D --> Q[Outbox queue + delete markers<br/>Stage 2b]:::wip
+  Q --> R{Internet?}:::blue
+  R -->|No| S[Wait in queue]:::wip
+  S --> R
+  R -->|Yes| T[(Firebase relay<br/>Auth + Firestore, free tier<br/>Stage 3)]:::pur
+  T --> U[(Other members' phones<br/>merge: newest wins, tie = delete then higher device id)]:::pur
+  U --> E

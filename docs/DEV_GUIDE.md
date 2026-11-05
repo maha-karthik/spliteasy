@@ -122,3 +122,6 @@ Paste one of these with the zip/repo attached. Each tells the agent to follow se
 2. Create the keystore, add the 4 secrets, rebuild, keep the keystore backed up.
 3. Bump `version:` in `pubspec.yaml` (e.g. `1.0.1+2`) for every upload; Play rejects a repeated versionCode.
 4. Upload the `.aab` to a closed test first. Check Play Console for the current testing requirements for new personal accounts before planning dates.
+
+## Diagrams
+Keep docs/blueprint/ (GIF + colour flowchart) in step with the stage table; see docs/blueprint/README.md.
