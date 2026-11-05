@@ -3,14 +3,69 @@
 Status: **PROPOSAL for approval.** Only Stage 1 (contact picker) is implemented. Nothing else below is built yet.
 Marks: **[verified]** read from an official/primary page during planning. **[unverified]** could not be confirmed here and must be checked or tested on a device.
 
+## Revision 2 (after your feedback on 5 Nov)
+
+**Corrections**
+- **Nobody installs PostgreSQL.** The database runs in the cloud. Users install only the APK. With Firebase there is no database for you to install or host either, only a project you create once.
+- **Receiving an SMS is free for the user; sending one is not for the developer.** An OTP sign-in SMS is sent by Firebase to the user's phone; the user pays nothing, **you** pay per message sent.
+
+**Backend changed to Firebase** (your constraints: free only, sign in with Google, email and phone OTP)
+- [verified] Firebase/Identity Platform prices SMS verification in **India at $0.07 per SMS**. The page says "the first ten SMS that you send per day are not billed" (its own example treats 300 per month as free, so the exact quota is unclear; check your billing report). Google, email and phone sign-in are free up to 50,000 monthly users.
+- [verified] Phone sign-in is "Not applicable" on the no-card Spark plan. You must switch the project to **Blaze** (card on file). Set a budget alert (for example Rs 100) so a surprise bill cannot happen.
+- [verified] Supabase has no SMS of its own: you must bring Twilio, MessageBird, Vonage or Textlocal, and India's TRAI DLT rules apply. Its free projects pause after a week idle. That is why it no longer fits "free only".
+- Firestore free quota [verified]: 50K reads, 20K writes, 20K deletes per day, 1 GiB. Offline support is built in. Nothing pauses.
+- We keep the sync code behind a `SyncBackend` interface, so a later paid move to Supabase stays possible.
+
+**"Existing sign-in"** is assumed to mean email + password. Tell me if you meant something else.
+
+### Firebase mapping (replaces 2.4 to 2.6 for implementation; the sync principles in 2.2, 2.3 and 2.6 still apply)
+- Collections: `groups/{gid}`; `groups/{gid}/members/{uid or inviteMemberId}`; `groups/{gid}/expenses/{eid}` with **payers and shares embedded in the same document** (an edit is one atomic write, so nobody sees a half-edited expense); `groups/{gid}/settlements/{sid}`; `.../topups`; `.../audit`; `invites/{tokenHash}`.
+- **Duplicate payments without unique constraints:** Firestore has none, so each UTR gets a lock document `groups/{gid}/utrs/{utr}` created **in the same batch** as the settlement. Security rules allow `create` only if that document does not exist, so a second payment with the same UTR is rejected by the server. Same for screenshot hashes.
+- **Safe offline retries:** every record has a client-generated UUID used as the document id and is written with `set()`, so replaying a queued write cannot create a second copy.
+- **Rules:** only members read or write group data; no client deletes (soft delete); only an admin changes roles; only the **receiving** member can move a settlement to `confirmed`.
+- **Invites without Cloud Functions** (Functions need Blaze and add moving parts): the invite document is readable only by its exact id; redeeming is one batch that creates the member document and marks the invite used, and the rules verify both with `getAfter()`. This is the most intricate rule set; it is tested with the Firebase emulator in CI (rules unit tests).
+- **Real time:** Firestore snapshot listeners on my groups write changes into the local SQLite, which refreshes the screens. SQLite stays the source of truth, so the balance maths and all unit tests are unchanged.
+- **Cost:** Rs 0 within the quotas. Above 10 OTPs per day, about Rs 6 per SMS (rough, at current exchange rates).
+
+### Pay the remaining amount from inside the app (new Stage 3c)
+- A "Pay Rs X to Name" screen with tiles for **Google Pay, PhonePe, Paytm, BHIM and any UPI app**, paying to the member's **UPI ID** (or mobile number, see below).
+- It builds a `upi://pay?pa=...&pn=...&am=...&cu=INR&tn=...` link. Targeting one specific app needs its Android package name in the manifest `<queries>` list. [unverified] Package names I expect: `com.google.android.apps.nbu.paisa.user` (Google Pay), `com.phonepe.app` (PhonePe), `net.one97.paytm` (Paytm), `in.org.npci.upiapp` (BHIM). Verify on your phone.
+- **Mobile number limitation:** the UPI link needs a UPI ID. A mobile number cannot be pre-filled reliably. For a number-only member the app copies the number, opens the chosen app, and shows the amount in a banner for you to enter.
+- Some UPI apps return a status and transaction id to the calling app. [unverified] for payments to personal UPI IDs; Google Pay and PhonePe may restrict third-party intents. Test on your phone. If the app returns "success" we use it only as a hint, never as proof.
+- After you return, the app asks "Did you complete the payment?" and moves straight into confirmation below.
+
+### Confirming a payment (replaces the Stage 4 and 5 wording)
+Two ways, as you described, with one safeguard: **a screenshot or SMS alone never makes a payment "verified"** (screenshots can be edited).
+1. **Share the payment screenshot to SplitEasy.** The app reads amount, UTR, payee and time, checks that you are a member of a group with a **pending payment** to that payee, and shows a confirmation screen. After you confirm, the payment is added as **recorded (matched)** and counts in balances.
+2. **Pay from the app, then paste the debit SMS** (or share it from Messages if your Messages app allows it).
+- **Verified status:** the receiver confirms with one tap, **or** the receiver's own credit SMS/screenshot carries the **same UTR** as the payer's evidence (two independent sources). Either one makes it verified.
+
+### SMS auto-read: your idea and the Play Store problem
+- Technically possible: declare `READ_SMS`/`RECEIVE_SMS`, ask the user in the app, and read bank transaction messages on the phone.
+- [verified] Google Play allows these permissions only to the default SMS/Phone/Assistant app, with narrow exceptions where there is "no alternative method". Because sharing and pasting are alternatives, a Play upload declaring SMS permissions would most likely be **rejected**. I cannot predict the outcome of a permissions declaration.
+- **Proposed solution, needs your decision:** build **two variants** from the same code. **(A) Play build:** no SMS permission; screenshot sharing and paste. **(B) Direct APK** (shared by link or WhatsApp, outside Play): optional auto-read of transaction SMS from bank senders only, processed on the phone, never uploaded. CI builds both; the Play variant never contains the SMS permission.
+- If you only want one build for Play, choose (A).
+
+### Updated stages
+| Stage | Scope |
+|---|---|
+| 1 | Contact picker (done, device test pending) |
+| 2 | Signing keystore, UUIDs and timestamps, offline write queue, `SyncBackend` interface, pure merge logic and tests |
+| 3a | Local settlement upgrade: methods, date and time, statuses, evidence label, audit fields |
+| 3 | Firebase project, security rules and emulator tests, 3 sign-in methods, share group, invites, sync |
+| 3c | Pay from app (UPI app tiles) |
+| 4 | Share-screenshot capture with pending-payment matching, paste/share SMS, optional direct-APK SMS auto-read |
+| 5 | Diagnostic panel for what each UPI app shares, then parser tuning from your real samples |
+| 6 | Proof image sync (Firebase Storage pricing to check) and the 15-scenario device checklist |
+
 ## 0. Decisions needed from you
 
 | # | Decision | Recommendation |
 |---|---|---|
-| 1 | Backend | **Supabase** (Postgres + Row Level Security + Realtime). Reasons in section 2.1 |
-| 2 | Sign-in | **Google Sign-In** first (free, no SMS cost). Phone OTP later if you want it |
-| 3 | Budget | Free tier while testing; **Supabase Pro, $25/month**, before real users |
-| 4 | Who creates the cloud project | You (about 5 minutes, steps in 2.9). I cannot reach your cloud accounts |
+| 1 | Backend | **Firebase (Auth + Firestore)**. Changed from Supabase after your free-only + phone-OTP requirement. See Revision 2 |
+| 2 | Sign-in | **Google + email/password + phone OTP** (your requirement). Phone OTP needs the Firebase Blaze plan (card on file, budget alert) |
+| 3 | Budget | **Free version now**, paid later. Expected cost: Rs 0 while within the free quotas |
+| 4 | Who creates the cloud project | You (about 10 minutes, steps in Revision 2). I cannot reach your cloud accounts |
 | 5 | Signing | Create the keystore + 4 GitHub secrets **before Stage 2**, so new builds install over old ones (see section 7) |
 | 6 | Unconfirmed payments | Default proposed: they **count** in balances with an "unconfirmed" badge; **disputed** ones do not count until resolved |
 
@@ -27,7 +82,7 @@ Marks: **[verified]** read from an official/primary page during planning. **[unv
 
 ## 2. Shared groups
 
-### 2.1 Backend comparison
+### 2.1 Backend comparison (SUPERSEDED by Revision 2: Firebase is now recommended; the Postgres schema in 2.4 applies only if we move to Supabase later)
 
 | | Supabase | Firebase |
 |---|---|---|
