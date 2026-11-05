@@ -32,6 +32,7 @@ No backend, no login, no recurring cost. All data lives in on-device SQLite.
 ## 3. Data model (SQLite)
 
 `grp(id,name,kitty)` > `member(id,group_id,name,upi_id,phone,active)` (phone = optional E.164, added in schema v2 via `onUpgrade`)
+Schema v3: `grp`, `member`, `expense`, `settlement` and `topup` also carry `uid` (UUID v4, unique) and `updated_at` (ms). **Every write to these tables must set `updated_at`** and new rows must get `newUid()`; the sync stage depends on both. Merge rules live in `lib/logic/merge.dart`.
 `expense(id,group_id,title,amount,category,note,split_type,proof_path,date)` with `payer(expense_id,member_id,amount)` (empty = paid from kitty) and `share(expense_id,member_id,amount)`
 `settlement(id,group_id,from_id,to_id,amount,ref UNIQUE,proof_hash UNIQUE,method,status,proof_path,note,date)`; status is `verified` (proof + UTR), `unverified` (proof, no UTR) or `manual` (cash/offline)
 `topup(id,group_id,member_id,amount,date)` for the kitty pool
