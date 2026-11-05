@@ -65,7 +65,7 @@ Future<bool> memberDialog(BuildContext context, int gid, {DbRow? existing, requi
                 autofillHints: const [], // empty list = no phone-number autofill suggestion
                 enableSuggestions: false,
                 inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9+\-\s()]'))],
-                decoration: InputDecoration(labelText: 'Mobile number (optional)', hintText: '98765 43210', errorText: errPhone),
+                decoration: InputDecoration(labelText: 'Mobile number (optional)', hintText: '10-digit mobile number', errorText: errPhone),
               ),
               TextField(controller: u, autofillHints: const [], decoration: InputDecoration(labelText: 'UPI ID (optional)', hintText: 'name@okhdfcbank', errorText: errUpi)),
             ]),
