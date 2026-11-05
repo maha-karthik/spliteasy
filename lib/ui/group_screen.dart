@@ -150,21 +150,30 @@ class _GroupScreenState extends State<GroupScreen> {
             : TabBarView(children: [_expensesTab(l), _balancesTab(l), _paymentsTab(l)]),
         floatingActionButton: l == null
             ? null
-            : Column(mainAxisSize: MainAxisSize.min, children: [
-                FloatingActionButton.small(
-                    heroTag: 'proof',
-                    tooltip: 'Record payment / add proof',
-                    onPressed: () => l.active.length < 2
-                        ? ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Add at least two members first')))
-                        : _go(ProofScreen(groupId: gid, groupName: gname)),
-                    child: const Icon(Icons.document_scanner)),
-                const SizedBox(height: 8),
-                FloatingActionButton.extended(
-                    heroTag: 'exp',
-                    onPressed: () => l.active.isEmpty ? _go(MembersScreen(groupId: gid, kitty: kitty)) : _go(AddExpenseScreen(groupId: gid)),
-                    icon: const Icon(Icons.add),
-                    label: Text(l.active.isEmpty ? 'Add members first' : 'Expense')),
-              ]),
+            : Builder(builder: (c) {
+                final tc = DefaultTabController.of(c);
+                return AnimatedBuilder(
+                    animation: tc,
+                    builder: (_, __) {
+                      if (tc.index == 0) {
+                        return FloatingActionButton.extended(
+                            heroTag: 'exp',
+                            onPressed: () => l.active.isEmpty ? _go(MembersScreen(groupId: gid, kitty: kitty)) : _go(AddExpenseScreen(groupId: gid)),
+                            icon: const Icon(Icons.add),
+                            label: Text(l.active.isEmpty ? 'Add members first' : 'Expense'));
+                      }
+                      if (tc.index == 2) {
+                        return FloatingActionButton.extended(
+                            heroTag: 'proof',
+                            onPressed: () => l.active.length < 2
+                                ? ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Add at least two members first')))
+                                : _go(ProofScreen(groupId: gid, groupName: gname)),
+                            icon: const Icon(Icons.document_scanner),
+                            label: const Text('Record payment'));
+                      }
+                      return const SizedBox.shrink();
+                    });
+              }),
       ),
     );
   }
