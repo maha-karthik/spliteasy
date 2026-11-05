@@ -2,9 +2,13 @@ name: Build SplitEasy
 
 on:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Optional: publish a permanent GitHub Release with this tag (e.g. v0.2.1-stage2a)'
+        required: false
+        default: ''
   push:
     branches: [main]
-    tags: ['v*']
 
 jobs:
   build:
@@ -104,10 +108,11 @@ jobs:
             build/app/outputs/flutter-apk/*.apk
             build/app/outputs/bundle/release/*.aab
 
-      - name: Permanent GitHub Release (only for v* tags)
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Permanent GitHub Release (only when release_tag is given)
+        if: ${{ github.event.inputs.release_tag != '' }}
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.inputs.release_tag }}
         run: |
-          gh release create "${{ github.ref_name }}" --title "${{ github.ref_name }}" --notes "SplitEasy ${{ github.ref_name }}" \
+          gh release create "$TAG" --target "${{ github.sha }}" --title "$TAG" --notes "SplitEasy $TAG" \
             build/app/outputs/flutter-apk/*.apk build/app/outputs/bundle/release/*.aab
