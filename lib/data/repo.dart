@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
+import '../logic/ids.dart';
 import '../logic/settle.dart';
 
 typedef DbRow = Map<String, Object?>;
@@ -38,37 +39,58 @@ class Repo {
   static final ValueNotifier<int> changes = ValueNotifier<int>(0);
   static void _bump() => changes.value++;
 
+  static const _synced = ['grp', 'member', 'expense', 'settlement', 'topup'];
+  static int _now() => DateTime.now().millisecondsSinceEpoch;
+  static Future<void> _uidIndexes(Database d) async {
+    for (final t in _synced) {
+      await d.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_${t}_uid ON $t(uid)');
+    }
+  }
+
   static Future<Database> _open() async {
     final path = join(await getDatabasesPath(), 'spliteasy.db');
-    return openDatabase(path, version: 2, onConfigure: (d) => d.execute('PRAGMA foreign_keys = ON'),
+    return openDatabase(path, version: 3, onConfigure: (d) => d.execute('PRAGMA foreign_keys = ON'),
         onUpgrade: (d, oldV, newV) async {
           // v1 -> v2: members can carry a mobile number (normalised E.164, optional).
           if (oldV < 2) await d.execute('ALTER TABLE member ADD COLUMN phone TEXT');
+          if (oldV < 3) {
+            // v2 -> v3: every synced record gets a globally unique id and a last-changed time.
+            final now = _now();
+            for (final t in _synced) {
+              await d.execute('ALTER TABLE $t ADD COLUMN uid TEXT');
+              await d.execute('ALTER TABLE $t ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0');
+              for (final r in await d.query(t, columns: ['id'])) {
+                await d.update(t, {'uid': newUid(), 'updated_at': now}, where: 'id=?', whereArgs: [r['id']]);
+              }
+            }
+            await _uidIndexes(d);
+          }
         },
         onCreate: (d, v) async {
-      await d.execute('CREATE TABLE grp(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, kitty INTEGER NOT NULL DEFAULT 0)');
+      await d.execute('CREATE TABLE grp(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, kitty INTEGER NOT NULL DEFAULT 0, uid TEXT, updated_at INTEGER NOT NULL DEFAULT 0)');
       // active=0 means "removed": hidden from pickers but kept so old expenses still show the name.
-      await d.execute('CREATE TABLE member(id INTEGER PRIMARY KEY AUTOINCREMENT, group_id INTEGER NOT NULL REFERENCES grp(id) ON DELETE CASCADE, name TEXT NOT NULL, upi_id TEXT, active INTEGER NOT NULL DEFAULT 1, phone TEXT)');
-      await d.execute('CREATE TABLE expense(id INTEGER PRIMARY KEY AUTOINCREMENT, group_id INTEGER NOT NULL REFERENCES grp(id) ON DELETE CASCADE, title TEXT NOT NULL, amount INTEGER NOT NULL, category TEXT, note TEXT, split_type TEXT, proof_path TEXT, date INTEGER NOT NULL)');
+      await d.execute('CREATE TABLE member(id INTEGER PRIMARY KEY AUTOINCREMENT, group_id INTEGER NOT NULL REFERENCES grp(id) ON DELETE CASCADE, name TEXT NOT NULL, upi_id TEXT, active INTEGER NOT NULL DEFAULT 1, phone TEXT, uid TEXT, updated_at INTEGER NOT NULL DEFAULT 0)');
+      await d.execute('CREATE TABLE expense(id INTEGER PRIMARY KEY AUTOINCREMENT, group_id INTEGER NOT NULL REFERENCES grp(id) ON DELETE CASCADE, title TEXT NOT NULL, amount INTEGER NOT NULL, category TEXT, note TEXT, split_type TEXT, proof_path TEXT, date INTEGER NOT NULL, uid TEXT, updated_at INTEGER NOT NULL DEFAULT 0)');
       await d.execute('CREATE TABLE payer(expense_id INTEGER NOT NULL REFERENCES expense(id) ON DELETE CASCADE, member_id INTEGER NOT NULL, amount INTEGER NOT NULL, PRIMARY KEY(expense_id, member_id))');
       await d.execute('CREATE TABLE share(expense_id INTEGER NOT NULL REFERENCES expense(id) ON DELETE CASCADE, member_id INTEGER NOT NULL, amount INTEGER NOT NULL, PRIMARY KEY(expense_id, member_id))');
       // ref = 12-digit UTR (or PhonePe txn id); proof_hash = fingerprint of the screenshot file.
       // Both UNIQUE: duplicates are blocked at the database layer even if app logic is bypassed.
-      await d.execute('CREATE TABLE settlement(id INTEGER PRIMARY KEY AUTOINCREMENT, group_id INTEGER NOT NULL REFERENCES grp(id) ON DELETE CASCADE, from_id INTEGER NOT NULL, to_id INTEGER NOT NULL, amount INTEGER NOT NULL, ref TEXT UNIQUE, proof_hash TEXT UNIQUE, method TEXT, status TEXT NOT NULL, proof_path TEXT, note TEXT, date INTEGER NOT NULL)');
-      await d.execute('CREATE TABLE topup(id INTEGER PRIMARY KEY AUTOINCREMENT, group_id INTEGER NOT NULL REFERENCES grp(id) ON DELETE CASCADE, member_id INTEGER NOT NULL, amount INTEGER NOT NULL, date INTEGER NOT NULL)');
+      await d.execute('CREATE TABLE settlement(id INTEGER PRIMARY KEY AUTOINCREMENT, group_id INTEGER NOT NULL REFERENCES grp(id) ON DELETE CASCADE, from_id INTEGER NOT NULL, to_id INTEGER NOT NULL, amount INTEGER NOT NULL, ref TEXT UNIQUE, proof_hash TEXT UNIQUE, method TEXT, status TEXT NOT NULL, proof_path TEXT, note TEXT, date INTEGER NOT NULL, uid TEXT, updated_at INTEGER NOT NULL DEFAULT 0)');
+      await d.execute('CREATE TABLE topup(id INTEGER PRIMARY KEY AUTOINCREMENT, group_id INTEGER NOT NULL REFERENCES grp(id) ON DELETE CASCADE, member_id INTEGER NOT NULL, amount INTEGER NOT NULL, date INTEGER NOT NULL, uid TEXT, updated_at INTEGER NOT NULL DEFAULT 0)');
+      await _uidIndexes(d);
     });
   }
 
   // ---- groups ----
   static Future<List<DbRow>> groups() async => (await db).query('grp', orderBy: 'id DESC');
   static Future<int> addGroup(String name, bool kitty) async {
-    final id = await (await db).insert('grp', {'name': name, 'kitty': kitty ? 1 : 0});
+    final id = await (await db).insert('grp', {'name': name, 'kitty': kitty ? 1 : 0, 'uid': newUid(), 'updated_at': _now()});
     _bump();
     return id;
   }
 
   static Future<void> renameGroup(int id, String name) async {
-    await (await db).update('grp', {'name': name}, where: 'id=?', whereArgs: [id]);
+    await (await db).update('grp', {'name': name, 'updated_at': _now()}, where: 'id=?', whereArgs: [id]);
     _bump();
   }
 
@@ -87,6 +109,8 @@ class Repo {
       'name': name,
       'upi_id': (upi == null || upi.trim().isEmpty) ? null : upi.trim(),
       'phone': (phone == null || phone.isEmpty) ? null : phone,
+      'uid': newUid(),
+      'updated_at': _now(),
     });
     _bump();
     return id;
@@ -99,6 +123,7 @@ class Repo {
           'name': name,
           'upi_id': (upi == null || upi.trim().isEmpty) ? null : upi.trim(),
           'phone': (phone == null || phone.isEmpty) ? null : phone,
+          'updated_at': _now(),
         },
         where: 'id=?',
         whereArgs: [id]);
@@ -107,7 +132,7 @@ class Repo {
 
   /// Soft-remove. Caller must make sure the member's balance is zero first.
   static Future<void> archiveMember(int id) async {
-    await (await db).update('member', {'active': 0}, where: 'id=?', whereArgs: [id]);
+    await (await db).update('member', {'active': 0, 'updated_at': _now()}, where: 'id=?', whereArgs: [id]);
     _bump();
   }
 
@@ -127,7 +152,7 @@ class Repo {
   static Future<int> addExpense(DbRow e, Map<int, int> payers, Map<int, int> shares) async {
     final d = await db;
     final id = await d.transaction((tx) async {
-      final id = await tx.insert('expense', e);
+      final id = await tx.insert('expense', {...e, 'uid': newUid(), 'updated_at': _now()});
       await _writeParts(tx, id, payers, shares);
       return id;
     });
@@ -138,7 +163,7 @@ class Repo {
   static Future<void> updateExpense(int id, DbRow e, Map<int, int> payers, Map<int, int> shares) async {
     final d = await db;
     await d.transaction((tx) async {
-      await tx.update('expense', e, where: 'id=?', whereArgs: [id]);
+      await tx.update('expense', {...e, 'updated_at': _now()}, where: 'id=?', whereArgs: [id]);
       await tx.delete('payer', where: 'expense_id=?', whereArgs: [id]);
       await tx.delete('share', where: 'expense_id=?', whereArgs: [id]);
       await _writeParts(tx, id, payers, shares);
@@ -194,7 +219,7 @@ class Repo {
       final id = await d.insert('settlement', {
         'group_id': gid, 'from_id': from, 'to_id': to, 'amount': amount,
         'ref': r, 'proof_hash': proofHash, 'method': method, 'status': status,
-        'proof_path': proofPath, 'note': note,
+        'proof_path': proofPath, 'note': note, 'uid': newUid(), 'updated_at': _now(),
         'date': (when ?? DateTime.now()).millisecondsSinceEpoch,
       });
       _bump();
@@ -213,7 +238,7 @@ class Repo {
   // ---- kitty ----
   static Future<void> addTopup(int gid, int memberId, int amount) async {
     await (await db).insert(
-        'topup', {'group_id': gid, 'member_id': memberId, 'amount': amount, 'date': DateTime.now().millisecondsSinceEpoch});
+        'topup', {'group_id': gid, 'member_id': memberId, 'amount': amount, 'date': _now(), 'uid': newUid(), 'updated_at': _now()});
     _bump();
   }
 
