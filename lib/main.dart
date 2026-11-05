@@ -152,6 +152,19 @@ class _HomeScreenState extends State<HomeScreen> {
     if (ok == true) await Repo.addGroup(c.text.trim(), kitty);
   }
 
+  Future<bool> _confirmDeleteGroup(DbRow g) async =>
+      await showDialog<bool>(
+          context: context,
+          builder: (c) => AlertDialog(
+                title: Text('Delete ${g['name']}?'),
+                content: const Text('All its expenses and payments will be deleted.'),
+                actions: [
+                  TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancel')),
+                  FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Delete')),
+                ],
+              )) ==
+      true;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -164,22 +177,17 @@ class _HomeScreenState extends State<HomeScreen> {
                   key: ValueKey(g['id']),
                   direction: DismissDirection.endToStart,
                   background: Container(color: Colors.red, alignment: Alignment.centerRight, padding: const EdgeInsets.only(right: 16), child: const Icon(Icons.delete, color: Colors.white)),
-                  confirmDismiss: (_) async =>
-                      await showDialog<bool>(
-                          context: context,
-                          builder: (c) => AlertDialog(
-                                title: Text('Delete ${g['name']}?'),
-                                content: const Text('All its expenses and payments will be deleted.'),
-                                actions: [
-                                  TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancel')),
-                                  FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Delete')),
-                                ],
-                              )) ==
-                      true,
+                  confirmDismiss: (_) => _confirmDeleteGroup(g),
                   onDismissed: (_) => Repo.deleteGroup(g['id'] as int),
                   child: ListTile(
                     leading: Icon(g['kitty'] == 1 ? Icons.savings : Icons.groups),
                     title: Text(g['name'] as String),
+                    trailing: IconButton(
+                        icon: const Icon(Icons.delete_outline),
+                        tooltip: 'Delete group',
+                        onPressed: () async {
+                          if (await _confirmDeleteGroup(g)) await Repo.deleteGroup(g['id'] as int);
+                        }),
                     onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => GroupScreen(group: g))),
                   ),
                 ),

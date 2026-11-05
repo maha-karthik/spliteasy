@@ -22,9 +22,9 @@ flowchart TD
   M --> N{Receiver confirms, or same UTR from both sides?}:::blue
   N -->|Yes| O[Verified]:::done
   N -->|Disputed| P[Excluded from balance]:::rule
-  D --> Q[Outbox queue + delete markers<br/>Stage 2b]:::wip
+  D --> Q[Outbox queue + delete markers<br/>Stage 2b]:::done
   Q --> R{Internet?}:::blue
-  R -->|No| S[Wait in queue]:::wip
+  R -->|No| S[Wait in queue]:::done
   S --> R
   R -->|Yes| T[(Firebase relay<br/>Auth + Firestore, free tier<br/>Stage 3)]:::pur
   T --> U[(Other members' phones<br/>merge: newest wins, tie = delete then higher device id)]:::pur

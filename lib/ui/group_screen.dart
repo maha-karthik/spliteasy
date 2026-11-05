@@ -194,7 +194,15 @@ class _GroupScreenState extends State<GroupScreen> {
                 : const Icon(Icons.shopping_bag_outlined),
             title: Text(e['title'] as String),
             subtitle: Text('${e['category']} • paid by ${payerText[e['id']] ?? ''} • ${e['split_type']}'),
-            trailing: Text(rupees(e['amount'] as int), style: const TextStyle(fontWeight: FontWeight.bold)),
+            trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+              Text(rupees(e['amount'] as int), style: const TextStyle(fontWeight: FontWeight.bold)),
+              IconButton(
+                  icon: const Icon(Icons.delete_outline),
+                  tooltip: 'Delete expense',
+                  onPressed: () async {
+                    if (await _confirm('Delete "${e['title']}"?', 'Balances will be recalculated.')) await Repo.deleteExpense(e['id'] as int);
+                  }),
+            ]),
             onTap: () => _go(AddExpenseScreen(groupId: gid, editing: e)),
           ),
         ),
@@ -265,7 +273,15 @@ class _GroupScreenState extends State<GroupScreen> {
             leading: Icon(icon(p['status'] as String), color: color(p['status'] as String)),
             title: Text('${l.nameOf(p['from_id'] as int)} → ${l.nameOf(p['to_id'] as int)}'),
             subtitle: Text('${p['method']} • ${p['status']}${p['ref'] != null ? ' • UTR ${p['ref']}' : ''}'),
-            trailing: Text(rupees(p['amount'] as int), style: const TextStyle(fontWeight: FontWeight.bold)),
+            trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+              Text(rupees(p['amount'] as int), style: const TextStyle(fontWeight: FontWeight.bold)),
+              IconButton(
+                  icon: const Icon(Icons.delete_outline),
+                  tooltip: 'Delete payment',
+                  onPressed: () async {
+                    if (await _confirm('Delete this payment?', 'Balances will be recalculated.')) await Repo.deleteSettlement(p['id'] as int);
+                  }),
+            ]),
             onTap: p['proof_path'] == null ? null : () => _showProof(p['proof_path'] as String),
           ),
         ),

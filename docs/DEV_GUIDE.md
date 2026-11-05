@@ -33,6 +33,7 @@ No backend, no login, no recurring cost. All data lives in on-device SQLite.
 
 `grp(id,name,kitty)` > `member(id,group_id,name,upi_id,phone,active)` (phone = optional E.164, added in schema v2 via `onUpgrade`)
 Schema v3: `grp`, `member`, `expense`, `settlement` and `topup` also carry `uid` (UUID v4, unique) and `updated_at` (ms). **Every write to these tables must set `updated_at`** and new rows must get `newUid()`; the sync stage depends on both. Merge rules live in `lib/logic/merge.dart`.
+Schema v4: `grp`, `expense`, `settlement` also carry `deleted_at` (delete marker). **Never hard-delete these rows**; set `deleted_at` and `updated_at`, and every query must filter `deleted_at IS NULL`. Every write also queues a change in `outbox` inside the same transaction (`Repo._enqueue`). `applied_ops` and `sync_meta` support sync. The sync algorithm is `lib/sync/sync_engine.dart` (pure, tested with in-memory fakes in `test/helpers`); Stage 3 adds the Firebase `SyncBackend` and a SQLite `SyncStore`.
 `expense(id,group_id,title,amount,category,note,split_type,proof_path,date)` with `payer(expense_id,member_id,amount)` (empty = paid from kitty) and `share(expense_id,member_id,amount)`
 `settlement(id,group_id,from_id,to_id,amount,ref UNIQUE,proof_hash UNIQUE,method,status,proof_path,note,date)`; status is `verified` (proof + UTR), `unverified` (proof, no UTR) or `manual` (cash/offline)
 `topup(id,group_id,member_id,amount,date)` for the kitty pool

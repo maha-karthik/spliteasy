@@ -26,6 +26,7 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
+  sqflite_common_ffi: ^2.3.0 # tests only: runs the real database code and upgrades on the CI machine
 
 flutter:
   uses-material-design: true
