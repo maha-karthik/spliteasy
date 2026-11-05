@@ -20,11 +20,9 @@ class ContactService {
     if (c == null) return null;
     final phones = <String>[];
     for (final p in c.phones) {
-      final n = normalizePhone('${p.value}');
+      final n = normalizePhone(p.value);
       if (n != null && !phones.contains(n)) phones.add(n);
     }
-    final raw = c.displayName;
-    final name = raw == null ? '' : raw.trim();
-    return PickedPerson(name, phones);
+    return PickedPerson(c.displayName.trim(), phones);
   }
 }
