@@ -13,7 +13,7 @@ No backend, no login, no recurring cost. All data lives in on-device SQLite.
 | `lib/services/services.dart` | OCR, image downscale + fingerprint, TTS, UPI deep link, PDF, formatters | Yes |
 | `lib/ui/*` | Screens: group, add/edit expense, proof, members | Yes |
 | `lib/main.dart` | App, Home screen, Share Sheet intake | Yes |
-| `test/logic_test.dart` | Unit tests for logic folder | |
+| `test/*_test.dart` | Unit tests for `lib/logic` (`logic_test.dart`, `contact_utils_test.dart`) | |
 | `tools/apply_android.py` | Patches the generated `android/` (manifest, R8, signing, minSdk 23) | |
 | `.github/workflows/build.yml` | CI: test, build APKs + AAB, upload logs | |
 
@@ -31,7 +31,7 @@ No backend, no login, no recurring cost. All data lives in on-device SQLite.
 
 ## 3. Data model (SQLite)
 
-`grp(id,name,kitty)` > `member(id,group_id,name,upi_id,active)`
+`grp(id,name,kitty)` > `member(id,group_id,name,upi_id,phone,active)` (phone = optional E.164, added in schema v2 via `onUpgrade`)
 `expense(id,group_id,title,amount,category,note,split_type,proof_path,date)` with `payer(expense_id,member_id,amount)` (empty = paid from kitty) and `share(expense_id,member_id,amount)`
 `settlement(id,group_id,from_id,to_id,amount,ref UNIQUE,proof_hash UNIQUE,method,status,proof_path,note,date)`; status is `verified` (proof + UTR), `unverified` (proof, no UTR) or `manual` (cash/offline)
 `topup(id,group_id,member_id,amount,date)` for the kitty pool

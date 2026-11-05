@@ -40,11 +40,15 @@ class Repo {
 
   static Future<Database> _open() async {
     final path = join(await getDatabasesPath(), 'spliteasy.db');
-    return openDatabase(path, version: 1, onConfigure: (d) => d.execute('PRAGMA foreign_keys = ON'),
+    return openDatabase(path, version: 2, onConfigure: (d) => d.execute('PRAGMA foreign_keys = ON'),
+        onUpgrade: (d, oldV, newV) async {
+          // v1 -> v2: members can carry a mobile number (normalised E.164, optional).
+          if (oldV < 2) await d.execute('ALTER TABLE member ADD COLUMN phone TEXT');
+        },
         onCreate: (d, v) async {
       await d.execute('CREATE TABLE grp(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, kitty INTEGER NOT NULL DEFAULT 0)');
       // active=0 means "removed": hidden from pickers but kept so old expenses still show the name.
-      await d.execute('CREATE TABLE member(id INTEGER PRIMARY KEY AUTOINCREMENT, group_id INTEGER NOT NULL REFERENCES grp(id) ON DELETE CASCADE, name TEXT NOT NULL, upi_id TEXT, active INTEGER NOT NULL DEFAULT 1)');
+      await d.execute('CREATE TABLE member(id INTEGER PRIMARY KEY AUTOINCREMENT, group_id INTEGER NOT NULL REFERENCES grp(id) ON DELETE CASCADE, name TEXT NOT NULL, upi_id TEXT, active INTEGER NOT NULL DEFAULT 1, phone TEXT)');
       await d.execute('CREATE TABLE expense(id INTEGER PRIMARY KEY AUTOINCREMENT, group_id INTEGER NOT NULL REFERENCES grp(id) ON DELETE CASCADE, title TEXT NOT NULL, amount INTEGER NOT NULL, category TEXT, note TEXT, split_type TEXT, proof_path TEXT, date INTEGER NOT NULL)');
       await d.execute('CREATE TABLE payer(expense_id INTEGER NOT NULL REFERENCES expense(id) ON DELETE CASCADE, member_id INTEGER NOT NULL, amount INTEGER NOT NULL, PRIMARY KEY(expense_id, member_id))');
       await d.execute('CREATE TABLE share(expense_id INTEGER NOT NULL REFERENCES expense(id) ON DELETE CASCADE, member_id INTEGER NOT NULL, amount INTEGER NOT NULL, PRIMARY KEY(expense_id, member_id))');
@@ -77,16 +81,27 @@ class Repo {
   static Future<List<DbRow>> members(int gid, {bool all = false}) async => (await db).query('member',
       where: all ? 'group_id=?' : 'group_id=? AND active=1', whereArgs: [gid], orderBy: 'id');
 
-  static Future<int> addMember(int gid, String name, String? upi) async {
-    final id = await (await db).insert('member',
-        {'group_id': gid, 'name': name, 'upi_id': (upi == null || upi.trim().isEmpty) ? null : upi.trim()});
+  static Future<int> addMember(int gid, String name, String? upi, {String? phone}) async {
+    final id = await (await db).insert('member', {
+      'group_id': gid,
+      'name': name,
+      'upi_id': (upi == null || upi.trim().isEmpty) ? null : upi.trim(),
+      'phone': (phone == null || phone.isEmpty) ? null : phone,
+    });
     _bump();
     return id;
   }
 
-  static Future<void> updateMember(int id, String name, String? upi) async {
-    await (await db).update('member', {'name': name, 'upi_id': (upi == null || upi.trim().isEmpty) ? null : upi.trim()},
-        where: 'id=?', whereArgs: [id]);
+  static Future<void> updateMember(int id, String name, String? upi, {String? phone}) async {
+    await (await db).update(
+        'member',
+        {
+          'name': name,
+          'upi_id': (upi == null || upi.trim().isEmpty) ? null : upi.trim(),
+          'phone': (phone == null || phone.isEmpty) ? null : phone,
+        },
+        where: 'id=?',
+        whereArgs: [id]);
     _bump();
   }
 

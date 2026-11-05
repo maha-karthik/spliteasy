@@ -66,7 +66,7 @@ android {""", 1)
             }
         }
     }""", g, count=1)
-        g = re.sub(r"minSdk\s*=\s*flutter\.minSdkVersion", "minSdk = 23", g)
+        g = re.sub(r"minSdk\s*=\s*(?:flutter\.minSdkVersion|2[0-3])\b", "minSdk = 24", g)
         g = re.sub(r'signingConfig\s*=\s*signingConfigs\.getByName\("debug"\)',
                    '''signingConfig = if (keystoreProps.containsKey("storeFile")) signingConfigs.getByName("release") else signingConfigs.getByName("debug")
             isMinifyEnabled = true
@@ -93,7 +93,7 @@ android {
             }
         }
     }""", 1)
-        g = re.sub(r"minSdkVersion\s+flutter\.minSdkVersion", "minSdkVersion 23", g)
+        g = re.sub(r"minSdkVersion\s+(?:flutter\.minSdkVersion|2[0-3]\b)", "minSdkVersion 24", g)
         g = re.sub(r"signingConfig\s+signingConfigs\.debug",
                    """signingConfig keystoreProps['storeFile'] ? signingConfigs.release : signingConfigs.debug
             minifyEnabled true
