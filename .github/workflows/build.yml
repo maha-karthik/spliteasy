@@ -73,10 +73,18 @@ jobs:
           set -o pipefail
           flutter build appbundle --release 2>&1 | tee -a build.log
 
-      - name: Show APK signing certificate
+      - name: Show signing certificates
         run: |
-          APKSIGNER=$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
-          "$APKSIGNER" verify --print-certs build/app/outputs/flutter-apk/app-arm64-v8a-release.apk 2>&1 | grep -E "Signer #1 certificate (DN|SHA-256)" | tee -a build.log
+          echo "--- AAB (jar signature)" | tee -a build.log
+          keytool -printcert -jarfile build/app/outputs/bundle/release/app-release.aab 2>&1 | grep -E "Owner:|SHA256:" | tee -a build.log
+          echo "--- APK (v2/v3 signature)" | tee -a build.log
+          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          APKSIGNER=$(ls -d "$SDK"/build-tools/*/apksigner 2>/dev/null | sort -V | tail -1)
+          if [ -n "$APKSIGNER" ]; then
+            "$APKSIGNER" verify --print-certs build/app/outputs/flutter-apk/app-arm64-v8a-release.apk 2>&1 | grep -E "Signer #1|WARNING|ERROR" | tee -a build.log
+          else
+            echo "apksigner not found under $SDK" | tee -a build.log
+          fi
 
       - name: Upload build log (always, so failures can be pasted to the agent)
         if: always()
