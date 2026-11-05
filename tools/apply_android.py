@@ -72,6 +72,8 @@ android {""", 1)
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")''', g)
+    # receive_sharing_intent needs compileSdk 37 (Gradle metadata check fails on 36).
+    g = re.sub(r"compileSdk\s*=\s*[^\n]+", "compileSdk = 37", g)
     kts.write_text(g)
 elif groovy.exists():
     g = groovy.read_text()
@@ -97,7 +99,14 @@ android {
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'""", g)
+    g = re.sub(r"compileSdk(?:Version)?\s*(?:=\s*)?[^\n]+", "compileSdk 37", g, count=1)
     groovy.write_text(g)
 else:
     sys.exit("No app/build.gradle(.kts) found")
+# AGP only "recommends" up to the SDK it was tested with; silence that warning for 37.
+gp = android / "gradle.properties"
+props = gp.read_text() if gp.exists() else ""
+if "android.suppressUnsupportedCompileSdk" not in props:
+    gp.write_text(props.rstrip("\n") + "\nandroid.suppressUnsupportedCompileSdk=37\n")
+
 print("Android project patched.")
