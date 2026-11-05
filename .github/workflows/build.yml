@@ -27,6 +27,8 @@ jobs:
           if [ ! -d android ]; then
             flutter create --org com.karthik --project-name spliteasy --platforms android . 2>&1 | tee -a build.log
           fi
+          # flutter create writes a sample test that references a MyApp class this project does not have.
+          rm -f test/widget_test.dart
           python3 tools/apply_android.py 2>&1 | tee -a build.log
 
       - name: Dependencies
