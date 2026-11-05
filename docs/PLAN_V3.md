@@ -3,6 +3,16 @@
 Status: **PROPOSAL for approval.** Only Stage 1 (contact picker) is implemented. Nothing else below is built yet.
 Marks: **[verified]** read from an official/primary page during planning. **[unverified]** could not be confirmed here and must be checked or tested on a device.
 
+## Decisions log
+5 Nov, from you:
+1. **Storage:** use each user's own device storage (offline-first). Open question: is a cloud relay still wanted for cross-phone sync, or phone-to-phone only? Needed before Stage 3.
+2. **SMS auto-read:** enabled in the current direct/test build. Implemented in Stage 4. A Play variant without the SMS permission is made before any Play upload; the SMS build must never go to Play.
+3. **Sign-in:** existing sign-in first (Google/email); if not available, mobile number + OTP.
+4. **Unconfirmed payments count toward balances** with an "unconfirmed" badge. Disputed ones do not.
+5. **Stage 1** approved for merge to `main`.
+6. **Release signing secrets** added to GitHub.
+7. **Working style:** one stage at a time, short steps.
+
 ## Revision 2 (after your feedback on 5 Nov)
 
 **Corrections**
