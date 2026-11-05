@@ -32,7 +32,7 @@ def cap(t,i):
 scenes=[]
 # Scene 1: roadmap
 s=['<div class="t">SplitEasy roadmap</div><div class="s">green = built &amp; tested in CI · amber = in progress · grey = next</div>']
-items=[("Stage 1","Contact picker<br>for Add Member","done"),("Stage 2a","Record IDs, times,<br>merge rules","done"),("Stage 2b","Delete markers,<br>offline queue","wip"),
+items=[("Stage 1","Contact picker<br>for Add Member","done"),("Stage 2a","Record IDs, times,<br>merge rules","done"),("Stage 2b","Delete markers,<br>offline queue","done"),
 ("Stage 3a","Settlement upgrade:<br>methods, statuses","next"),("Stage 3","Firebase sign-in,<br>shared groups, invites","next"),("Stage 3c","Pay from app:<br>GPay/PhonePe/UPI ID","next"),
 ("Stage 4","Share screenshot,<br>paste SMS, auto-read","next"),("Stage 5","UPI app diagnostics,<br>parser tuning","next"),("Stage 6","Proof image sync,<br>device checklist","next")]
 for k,(a,b_,c) in enumerate(items):
