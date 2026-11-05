@@ -1,0 +1,4 @@
+*.jks
+key.properties
+build/
+.dart_tool/
