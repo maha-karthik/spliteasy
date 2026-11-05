@@ -52,7 +52,7 @@ Future<bool> memberDialog(BuildContext context, int gid, {DbRow? existing, requi
           content: SingleChildScrollView(
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Expanded(child: TextField(controller: n, autofocus: existing == null, maxLength: 30, decoration: InputDecoration(labelText: 'Name', errorText: errName))),
+                Expanded(child: TextField(controller: n, autofocus: existing == null, autofillHints: const [], maxLength: 30, decoration: InputDecoration(labelText: 'Name', errorText: errName))),
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
                   child: IconButton.filledTonal(
@@ -62,10 +62,12 @@ Future<bool> memberDialog(BuildContext context, int gid, {DbRow? existing, requi
               TextField(
                 controller: ph,
                 keyboardType: TextInputType.phone,
+                autofillHints: const [], // empty list = no phone-number autofill suggestion
+                enableSuggestions: false,
                 inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9+\-\s()]'))],
                 decoration: InputDecoration(labelText: 'Mobile number (optional)', hintText: '98765 43210', errorText: errPhone),
               ),
-              TextField(controller: u, decoration: InputDecoration(labelText: 'UPI ID (optional)', hintText: 'name@okhdfcbank', errorText: errUpi)),
+              TextField(controller: u, autofillHints: const [], decoration: InputDecoration(labelText: 'UPI ID (optional)', hintText: 'name@okhdfcbank', errorText: errUpi)),
             ]),
           ),
           actions: [
@@ -145,17 +147,17 @@ class _MembersScreenState extends State<MembersScreen> {
     final bal = l!.net[m['id']] ?? 0;
     if (bal != 0) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('${m['name']} ${bal > 0 ? 'is owed' : 'owes'} ${rupees(bal.abs())}. Settle up before removing.')));
+          content: Text('${m['name']} ${bal > 0 ? 'is owed' : 'owes'} ${rupees(bal.abs())}. Settle up before archiving.')));
       return;
     }
     final yes = await showDialog<bool>(
         context: context,
         builder: (c) => AlertDialog(
-              title: Text('Remove ${m['name']}?'),
+              title: Text('Archive ${m['name']}?'),
               content: const Text('Past expenses keep their name for history. They will no longer appear in new expenses.'),
               actions: [
                 TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancel')),
-                FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Remove')),
+                FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Archive')),
               ],
             ));
     if (yes == true) await Repo.archiveMember(m['id'] as int);
@@ -183,8 +185,8 @@ class _MembersScreenState extends State<MembersScreen> {
                   title: Text(m['name'] as String),
                   subtitle: Text(_subtitle(m)),
                   trailing: Wrap(children: [
-                    IconButton(icon: const Icon(Icons.edit), onPressed: () => memberDialog(context, widget.groupId, existing: m, current: x.active)),
-                    IconButton(icon: const Icon(Icons.person_remove), onPressed: () => _remove(m)),
+                    IconButton(icon: const Icon(Icons.edit), tooltip: 'Edit member', onPressed: () => memberDialog(context, widget.groupId, existing: m, current: x.active)),
+                    IconButton(icon: const Icon(Icons.archive_outlined), tooltip: 'Archive member', onPressed: () => _remove(m)),
                   ]),
                 ),
               if (x.active.isEmpty) const Padding(padding: EdgeInsets.all(24), child: Center(child: Text('No members yet'))),
