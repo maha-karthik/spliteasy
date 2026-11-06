@@ -1,9 +1,13 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import '../data/repo.dart';
 import '../logic/settle.dart';
+import '../services/auth_service.dart';
+import '../services/group_sync.dart';
 import '../services/services.dart';
+import 'account_screen.dart';
 import 'add_expense.dart';
 import 'members_screen.dart';
 import 'proof_screen.dart';
@@ -19,6 +23,7 @@ class _GroupScreenState extends State<GroupScreen> {
   Ledger? ledger;
   List<DbRow> expenses = [], payments = [];
   Map<int, String> payerText = {};
+  bool shared = false, admin = true;
   late String gname = widget.group['name'] as String;
   int get gid => widget.group['id'] as int;
   bool get kitty => widget.group['kitty'] == 1;
@@ -45,7 +50,10 @@ class _GroupScreenState extends State<GroupScreen> {
       final py = await Repo.payersOf(x['id'] as int);
       pt[x['id'] as int] = py.isEmpty ? 'Kitty' : py.keys.map(l.nameOf).join(' + ');
     }
-    if (mounted) setState(() { ledger = l; expenses = e; payments = p; payerText = pt; });
+    final g = await Repo.groupById(gid);
+    final isShared = g?['shared'] == 1;
+    final isAdm = await Repo.isAdmin(gid, AuthService.user?.uid);
+    if (mounted) setState(() { ledger = l; expenses = e; payments = p; payerText = pt; shared = isShared; admin = isAdm; });
   }
 
   Future<void> _go(Widget w) => Navigator.push(context, MaterialPageRoute(builder: (_) => w));
@@ -62,6 +70,60 @@ class _GroupScreenState extends State<GroupScreen> {
                 ],
               )) ==
       true;
+
+
+  void _say(String m) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+
+  Future<void> _share() async {
+    if (!AuthService.ready) return _say('Cloud sharing is not available in this build.');
+    if (AuthService.user == null) {
+      final go = await _confirm('Sign in to share', 'Sharing needs an account so only the people you invite can see this group.');
+      if (go) await _go(const AccountScreen());
+      return;
+    }
+    final yes = await _confirm('Share "$gname"?',
+        'You become the admin. Member names, expenses and payment details are copied to the cloud so invited people can see them. Payment screenshots stay on your phone. You can still use the group offline.');
+    if (!yes) return;
+    try {
+      await GroupSyncService.shareGroup(gid);
+      if (mounted) await _invite();
+    } catch (e) {
+      _say('Could not share. Check your internet and try again.');
+    }
+  }
+
+  Future<void> _invite() async {
+    try {
+      final code = await GroupSyncService.createInvite(gid);
+      if (!mounted) return;
+      await showDialog<void>(
+          context: context,
+          builder: (c) => AlertDialog(
+                title: const Text('Invite code'),
+                content: Column(mainAxisSize: MainAxisSize.min, children: [
+                  SelectableText(code, style: const TextStyle(fontSize: 36, fontWeight: FontWeight.bold, letterSpacing: 6)),
+                  const SizedBox(height: 8),
+                  const Text('Valid for 7 days. Send it on WhatsApp. They open SplitEasy, tap the group icon on the home screen, and enter it.'),
+                ]),
+                actions: [
+                  TextButton(
+                      onPressed: () {
+                        Clipboard.setData(ClipboardData(text: code));
+                        Navigator.pop(c);
+                      },
+                      child: const Text('Copy')),
+                  FilledButton(
+                      onPressed: () {
+                        Share.share('Join "$gname" on SplitEasy. Open the app, tap the group icon on the home screen and enter code $code (valid 7 days).');
+                        Navigator.pop(c);
+                      },
+                      child: const Text('Share')),
+                ],
+              ));
+    } catch (e) {
+      _say('Could not create a code. Only the admin can, and you need internet.');
+    }
+  }
 
   Future<void> _rename() async {
     final c = TextEditingController(text: gname);
@@ -138,9 +200,25 @@ class _GroupScreenState extends State<GroupScreen> {
           actions: [
             IconButton(icon: const Icon(Icons.group), tooltip: 'Members', onPressed: () => _go(MembersScreen(groupId: gid, kitty: kitty))),
             if (l != null) IconButton(icon: const Icon(Icons.picture_as_pdf), tooltip: 'Export PDF', onPressed: _exportPdf),
+            if (shared)
+              IconButton(
+                  icon: const Icon(Icons.cloud_done_outlined),
+                  tooltip: 'Shared group. Tap to sync now',
+                  onPressed: () async {
+                    await GroupSyncService.syncAll();
+                    _say(GroupSyncService.status.value.isEmpty ? 'Synced' : GroupSyncService.status.value);
+                  }),
             PopupMenuButton<String>(
-              onSelected: (v) => v == 'rename' ? _rename() : null,
-              itemBuilder: (_) => const [PopupMenuItem(value: 'rename', child: Text('Rename group'))],
+              onSelected: (v) {
+                if (v == 'rename') _rename();
+                if (v == 'share') _share();
+                if (v == 'invite') _invite();
+              },
+              itemBuilder: (_) => [
+                if (admin) const PopupMenuItem(value: 'rename', child: Text('Rename group')),
+                if (!shared) const PopupMenuItem(value: 'share', child: Text('Share group')),
+                if (shared && admin) const PopupMenuItem(value: 'invite', child: Text('New invite code')),
+              ],
             ),
           ],
           bottom: const TabBar(tabs: [Tab(text: 'Expenses'), Tab(text: 'Balances'), Tab(text: 'Payments')]),

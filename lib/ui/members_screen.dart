@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/auth_service.dart';
 import 'package:flutter/services.dart';
 import '../data/repo.dart';
 import '../logic/contact_utils.dart';
@@ -124,6 +125,7 @@ class MembersScreen extends StatefulWidget {
 
 class _MembersScreenState extends State<MembersScreen> {
   Ledger? l;
+  bool admin = true; // false on a shared group where this person is not the admin
 
   @override
   void initState() {
@@ -140,7 +142,13 @@ class _MembersScreenState extends State<MembersScreen> {
 
   Future<void> _load() async {
     final x = await Repo.ledger(widget.groupId, kitty: widget.kitty);
-    if (mounted) setState(() => l = x);
+    final a = await Repo.isAdmin(widget.groupId, AuthService.user?.uid);
+    if (mounted) {
+      setState(() {
+        l = x;
+        admin = a;
+      });
+    }
   }
 
   Future<void> _remove(DbRow m) async {
@@ -180,18 +188,22 @@ class _MembersScreenState extends State<MembersScreen> {
       body: x == null
           ? const Center(child: CircularProgressIndicator())
           : ListView(children: [
+              if (!admin)
+                const ListTile(
+                    leading: Icon(Icons.lock_outline),
+                    title: Text('Only the group admin can add, edit or archive members')),
               for (final m in x.active)
                 ListTile(
                   title: Text(m['name'] as String),
                   subtitle: Text(_subtitle(m)),
-                  trailing: Wrap(children: [
+                  trailing: !admin ? null : Wrap(children: [
                     IconButton(icon: const Icon(Icons.edit), tooltip: 'Edit member', onPressed: () => memberDialog(context, widget.groupId, existing: m, current: x.active)),
                     IconButton(icon: const Icon(Icons.archive_outlined), tooltip: 'Archive member', onPressed: () => _remove(m)),
                   ]),
                 ),
               if (x.active.isEmpty) const Padding(padding: EdgeInsets.all(24), child: Center(child: Text('No members yet'))),
             ]),
-      floatingActionButton: x == null
+      floatingActionButton: x == null || !admin
           ? null
           : FloatingActionButton.extended(
               onPressed: () => memberDialog(context, widget.groupId, current: x.active),

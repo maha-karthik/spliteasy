@@ -38,9 +38,11 @@ Future<void> _makeV3() async {
 }
 
 void main() {
-  setUpAll(() {
+  setUpAll(() async {
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
+    // Each test file gets its own folder: flutter test runs files in parallel and they must not share a database.
+    await databaseFactory.setDatabasesPath(Directory.systemTemp.createTempSync('spliteasy_test_').path);
   });
   setUp(_wipe);
   tearDownAll(_wipe);

@@ -428,6 +428,11 @@ class Repo {
   static Future<List<DbRow>> sharedGroups() async =>
       (await db).query('grp', where: 'shared=1 AND deleted_at IS NULL');
 
+  static Future<DbRow?> groupById(int id) async {
+    final r = await (await db).query('grp', where: 'id=?', whereArgs: [id], limit: 1);
+    return r.isEmpty ? null : r.first;
+  }
+
   static Future<DbRow?> groupByUid(String uid) async {
     final r = await (await db).query('grp', where: 'uid=?', whereArgs: [uid], limit: 1);
     return r.isEmpty ? null : r.first;

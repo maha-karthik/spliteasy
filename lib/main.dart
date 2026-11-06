@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import 'data/repo.dart';
 import 'services/auth_service.dart';
+import 'services/group_sync.dart';
 import 'ui/account_screen.dart';
+import 'ui/join_screen.dart';
 import 'ui/welcome_screen.dart';
 import 'ui/group_screen.dart';
 import 'ui/proof_screen.dart';
@@ -13,6 +15,7 @@ final navKey = GlobalKey<NavigatorState>();
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await AuthService.init(); // optional cloud sign-in; the app works without it
+  GroupSyncService.start();
   runApp(const SplitEasyApp());
 }
 
@@ -166,7 +169,17 @@ class _HomeScreenState extends State<HomeScreen> {
     if (ok == true) await Repo.addGroup(c.text.trim(), kitty);
   }
 
-  Future<bool> _confirmDeleteGroup(DbRow g) async =>
+  Future<bool> _confirmDeleteGroup(DbRow g) async {
+    if (!await Repo.isAdmin(g['id'] as int, AuthService.user?.uid)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Only the group admin can delete a shared group')));
+      }
+      return false;
+    }
+    return _askDeleteGroup(g);
+  }
+
+  Future<bool> _askDeleteGroup(DbRow g) async =>
       await showDialog<bool>(
           context: context,
           builder: (c) => AlertDialog(
@@ -183,6 +196,10 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('SplitEasy'), actions: [
+        IconButton(
+            icon: const Icon(Icons.group_add_outlined),
+            tooltip: 'Join a group with a code',
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const JoinScreen()))),
         IconButton(icon: const Icon(Icons.info_outline), tooltip: 'Why SplitEasy', onPressed: _showWelcome),
         StreamBuilder<bool>(
             stream: AuthService.signedIn,
