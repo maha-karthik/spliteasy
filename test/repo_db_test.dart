@@ -45,10 +45,10 @@ void main() {
   setUp(_wipe);
   tearDownAll(_wipe);
 
-  test('upgrade from v3 keeps all data and balances, and adds the new tables', () async {
+  test('upgrade from v3 keeps all data and balances, and adds the new tables and columns', () async {
     await _makeV3();
     final d = await Repo.db; // opening runs the v3 -> v4 upgrade
-    expect(await d.getVersion(), 4);
+    expect(await d.getVersion(), 5);
     expect((await Repo.groups()).single['name'], 'Travel');
     expect((await Repo.members(1)).length, 3);
     expect((await Repo.expenses(1)).single['title'], 'petrol');
@@ -57,6 +57,8 @@ void main() {
     expect(l.net[2], 50000 - 116667);
     expect(l.net[3], -116666);
     expect((await d.query('outbox')), isEmpty);
+    expect((await d.query('grp')).single['shared'], 0);
+    expect((await d.rawQuery('PRAGMA table_info(outbox)')).any((c) => c['name'] == 'grp_uid'), isTrue);
     expect((await d.query('expense', columns: ['deleted_at'])).single['deleted_at'], isNull);
   });
 
