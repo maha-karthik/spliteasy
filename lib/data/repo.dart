@@ -523,8 +523,10 @@ class Repo {
     throw StateError('cannot create placeholder for $table');
   }
 
-  static Future<int> _memberRef(DatabaseExecutor x, Object? uid, int groupId) async =>
-      uid == 'kitty' ? kittyId : _idByUid(x, 'member', uid as String, groupId: groupId);
+  static Future<int> _memberRef(DatabaseExecutor x, Object? uid, int groupId) async {
+    if (uid == 'kitty') return kittyId;
+    return _idByUid(x, 'member', uid as String, groupId: groupId);
+  }
 
   /// Applies one change that came from another phone. Idempotent; does not queue anything.
   static Future<void> applyRemote(SyncOp op) async {
