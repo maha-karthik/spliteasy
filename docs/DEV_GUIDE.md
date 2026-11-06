@@ -126,3 +126,10 @@ Paste one of these with the zip/repo attached. Each tells the agent to follow se
 
 ## Diagrams
 Keep docs/blueprint/ (GIF + colour flowchart) in step with the stage table; see docs/blueprint/README.md.
+
+## Shared groups (Stage 3.2)
+- Schema v5: `grp.shared`, `grp.admin_uid`, `outbox.grp_uid`. Only changes of a shared group (matching `grp_uid`) are ever sent.
+- Cloud model (see `firestore.rules`): `groups/{gid}` (gid = group uid), `groups/{gid}/members/{authUid}` (role admin|member), `groups/{gid}/ops/{opId}` (append-only change log, payload is a JSON string), `invites/{code}` (6 chars, 7 days, lists member names only).
+- Rules are tested in CI against the Firestore emulator (`rules-test/`). After changing `firestore.rules`, paste it into Firebase console > Firestore > Rules > Publish.
+- Applying remote changes: `Repo.applyRemote` (idempotent, order independent via placeholders, duplicate UTR keeps the smaller uid). Orchestration: `lib/services/group_sync.dart`.
+- Only the admin may add/edit/archive members, rename or delete the group (enforced in UI and rules).

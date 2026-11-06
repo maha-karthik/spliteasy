@@ -26,6 +26,6 @@ flowchart TD
   Q --> R{Internet?}:::blue
   R -->|No| S[Wait in queue]:::done
   S --> R
-  R -->|Yes| T[(Firebase relay<br/>Auth + Firestore, free tier<br/>Stage 3)]:::pur
+  R -->|Yes| T[(Firebase relay<br/>Auth + Firestore, free tier<br/>Stage 3 - in test)]:::wip
   T --> U[(Other members' phones<br/>merge: newest wins, tie = delete then higher device id)]:::pur
   U --> E
