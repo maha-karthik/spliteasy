@@ -29,10 +29,15 @@ jobs:
           cache: true
 
       - name: Generate Android scaffold (first build only)
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
           set -o pipefail
           if [ ! -d android ]; then
             flutter create --org com.karthik --project-name spliteasy --platforms android . 2>&1 | tee -a build.log
+          fi
+          if [ -n "$GOOGLE_SERVICES_JSON" ]; then
+            printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
           fi
           # flutter create writes a sample test that references a MyApp class this project does not have.
           rm -f test/widget_test.dart
