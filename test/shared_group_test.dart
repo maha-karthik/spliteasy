@@ -133,6 +133,6 @@ void main() {
     final sUid = await Repo.shareGroupLocally(shared, 'authA');
     final q = await Repo.unsentFor(sUid);
     expect(q.every((r) => r['grp_uid'] == sUid), isTrue);
-    expect(q.length, 1); // only the group itself
+    expect(q.every((r) => r['tbl'] == 'grp'), isTrue); // the group's own creation and its share snapshot, nothing of 'Private'
   });
 }
