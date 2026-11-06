@@ -1,0 +1,71 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function memberRef(gid, uid) { return /databases/$(database)/documents/groups/$(gid)/members/$(uid); }
+    function isMember(gid) { return signedIn() && exists(memberRef(gid, request.auth.uid)); }
+    function isAdmin(gid) { return isMember(gid) && get(memberRef(gid, request.auth.uid)).data.role == 'admin'; }
+    function inviteOk(gid, code) {
+      return code is string && code.size() == 6
+        && exists(/databases/$(database)/documents/invites/$(code))
+        && get(/databases/$(database)/documents/invites/$(code)).data.gid == gid
+        && get(/databases/$(database)/documents/invites/$(code)).data.expiresAt > request.time;
+    }
+
+    // A shared group. Only the creator can create it, as its admin. Renames travel as changes in /ops.
+    match /groups/{gid} {
+      allow read: if isMember(gid);
+      allow create: if signedIn()
+        && request.resource.data.adminUid == request.auth.uid
+        && request.resource.data.keys().hasOnly(['name', 'kitty', 'adminUid', 'createdAt'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 60;
+      allow update, delete: if false;
+
+      // Who may see the group: one document per signed-in account, created by the admin
+      // (when sharing) or by a person holding a valid invite code (when joining).
+      match /members/{uid} {
+        allow read: if isMember(gid);
+        allow create: if signedIn() && request.auth.uid == uid
+          && request.resource.data.keys().hasOnly(['role', 'memberUid', 'name', 'inviteCode', 'joinedAt'])
+          && (
+            (request.resource.data.role == 'admin'
+              && getAfter(/databases/$(database)/documents/groups/$(gid)).data.adminUid == uid)
+            ||
+            (request.resource.data.role == 'member'
+              && inviteOk(gid, request.resource.data.inviteCode))
+          );
+        allow update, delete: if false;
+      }
+
+      // The shared change log. Append-only: nobody can edit or delete an entry.
+      match /ops/{opId} {
+        allow read: if isMember(gid);
+        allow create: if isMember(gid)
+          && request.resource.data.keys().hasOnly(['table', 'recUid', 'action', 'payload', 'updatedAt', 'origin', 'createdAt'])
+          && request.resource.data.origin == request.auth.uid
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.action in ['upsert', 'delete']
+          && request.resource.data.table in ['grp', 'member', 'expense', 'settlement', 'topup']
+          && request.resource.data.payload is string && request.resource.data.payload.size() < 20000
+          && request.resource.data.updatedAt is int
+          && (request.resource.data.table in ['expense', 'settlement', 'topup'] || isAdmin(gid));
+        allow update, delete: if false;
+      }
+    }
+
+    // Invite codes. Anyone signed in can look up one code they know, nobody can list them.
+    match /invites/{code} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if signedIn() && isAdmin(request.resource.data.gid)
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.keys().hasOnly(['gid', 'groupName', 'createdBy', 'createdAt', 'expiresAt', 'people'])
+        && request.resource.data.expiresAt is timestamp
+        && request.resource.data.expiresAt <= request.time + duration.value(8, 'd');
+      allow update: if false;
+      allow delete: if signedIn() && isAdmin(resource.data.gid);
+    }
+  }
+}
