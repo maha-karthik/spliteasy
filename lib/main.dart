@@ -4,6 +4,7 @@ import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import 'data/repo.dart';
 import 'services/auth_service.dart';
 import 'ui/account_screen.dart';
+import 'ui/welcome_screen.dart';
 import 'ui/group_screen.dart';
 import 'ui/proof_screen.dart';
 
@@ -110,7 +111,17 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     Repo.changes.addListener(_load);
     _load();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeWelcome());
   }
+
+  Future<void> _maybeWelcome() async {
+    if (await Repo.meta('welcome_seen') == '1' || !mounted) return;
+    await _showWelcome();
+  }
+
+  Future<void> _showWelcome() => Navigator.push(
+      context,
+      MaterialPageRoute(fullscreenDialog: true, builder: (_) => WelcomeScreen(onDone: () => Repo.setMeta('welcome_seen', '1'))));
 
   @override
   void dispose() {
@@ -172,6 +183,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('SplitEasy'), actions: [
+        IconButton(icon: const Icon(Icons.info_outline), tooltip: 'Why SplitEasy', onPressed: _showWelcome),
         StreamBuilder<bool>(
             stream: AuthService.signedIn,
             initialData: AuthService.user != null,

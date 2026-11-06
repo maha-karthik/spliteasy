@@ -16,6 +16,11 @@ void main() {
     expect(passwordProblem('12345678'), isNotNull);
     expect(passwordProblem('abcd1234'), isNull);
   });
+  test('confirm password', () {
+    expect(confirmProblem('abcd1234', 'abcd1234'), isNull);
+    expect(confirmProblem('abcd1234', 'abcd1235'), isNotNull);
+    expect(friendlyAuthError('operation-not-allowed'), contains('switched off'));
+  });
   test('friendly errors', () {
     expect(friendlyAuthError('wrong-password'), contains('incorrect'));
     expect(friendlyAuthError('invalid-credential'), contains('incorrect'));

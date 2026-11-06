@@ -102,6 +102,15 @@ class Repo {
   }
 
 
+  // ---- small settings (sync_meta key/value) ----
+  static Future<String?> meta(String key) async {
+    final r = await (await db).query('sync_meta', where: 'k=?', whereArgs: [key], limit: 1);
+    return r.isEmpty ? null : r.first['v'] as String?;
+  }
+
+  static Future<void> setMeta(String key, String value) async =>
+      (await db).insert('sync_meta', {'k': key, 'v': value}, conflictAlgorithm: ConflictAlgorithm.replace);
+
   // ---- outbox (every write below also queues a change, in the same database transaction) ----
   static Future<String> _memberUid(DatabaseExecutor x, int id) async {
     if (id == kittyId) return 'kitty';

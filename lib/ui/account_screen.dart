@@ -12,8 +12,10 @@ class AccountScreen extends StatefulWidget {
 class _AccountScreenState extends State<AccountScreen> {
   final email = TextEditingController();
   final pass = TextEditingController();
-  String? errEmail, errPass, message;
+  final confirm = TextEditingController();
+  String? errEmail, errPass, errConfirm, message;
   bool busy = false;
+  bool creating = false; // false = sign in, true = create account
 
   Future<void> _run(Future<void> Function() job) async {
     setState(() {
@@ -38,8 +40,9 @@ class _AccountScreenState extends State<AccountScreen> {
   bool _checkBoth({required bool strongPass}) {
     final e = _checkEmail();
     errPass = strongPass ? passwordProblem(pass.text) : (pass.text.isEmpty ? 'Enter your password' : null);
+    errConfirm = strongPass ? confirmProblem(pass.text, confirm.text) : null;
     setState(() {});
-    return e && errPass == null;
+    return e && errPass == null && errConfirm == null;
   }
 
   Future<void> _reset() async {
@@ -107,26 +110,32 @@ class _AccountScreenState extends State<AccountScreen> {
           autofillHints: const [AutofillHints.password],
           decoration: InputDecoration(labelText: 'Password', errorText: errPass)),
       const SizedBox(height: 12),
-      Row(children: [
-        Expanded(
-            child: FilledButton.tonal(
-                onPressed: busy
-                    ? null
-                    : () {
-                        if (_checkBoth(strongPass: false)) _run(() => AuthService.emailSignIn(email.text, pass.text));
-                      },
-                child: const Text('Sign in'))),
-        const SizedBox(width: 8),
-        Expanded(
-            child: OutlinedButton(
-                onPressed: busy
-                    ? null
-                    : () {
-                        if (_checkBoth(strongPass: true)) _run(() => AuthService.emailRegister(email.text, pass.text));
-                      },
-                child: const Text('Create account'))),
-      ]),
-      TextButton(onPressed: busy ? null : _reset, child: const Text('Forgot password?')),
+      if (creating)
+        TextField(
+            controller: confirm,
+            obscureText: true,
+            decoration: InputDecoration(labelText: 'Confirm password', errorText: errConfirm)),
+      const SizedBox(height: 12),
+      FilledButton.tonal(
+          onPressed: busy
+              ? null
+              : () {
+                  if (creating) {
+                    if (_checkBoth(strongPass: true)) _run(() => AuthService.emailRegister(email.text, pass.text));
+                  } else {
+                    if (_checkBoth(strongPass: false)) _run(() => AuthService.emailSignIn(email.text, pass.text));
+                  }
+                },
+          child: Text(creating ? 'Create account' : 'Sign in')),
+      TextButton(
+          onPressed: busy
+              ? null
+              : () => setState(() {
+                    creating = !creating;
+                    errEmail = errPass = errConfirm = message = null;
+                  }),
+          child: Text(creating ? 'Already have an account? Sign in' : 'New here? Create an account')),
+      if (!creating) TextButton(onPressed: busy ? null : _reset, child: const Text('Forgot password?')),
       if (busy) const Padding(padding: EdgeInsets.all(8), child: Center(child: CircularProgressIndicator())),
       if (message != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(message!, style: const TextStyle(color: Colors.orange))),
     ]);

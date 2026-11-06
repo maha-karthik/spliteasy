@@ -29,6 +29,8 @@ String friendlyAuthError(String code) {
       return 'No internet connection. Try again when you are online.';
     case 'too-many-requests':
       return 'Too many attempts. Wait a few minutes and try again.';
+    case 'operation-not-allowed':
+      return 'This sign-in method is switched off for the app. Please contact the app owner.';
     case 'user-disabled':
       return 'This account has been disabled.';
     case 'canceled':
@@ -41,3 +43,6 @@ String friendlyAuthError(String code) {
       return 'Sign-in failed ($code). Please try again.';
   }
 }
+
+/// null when both passwords match, otherwise a short reason.
+String? confirmProblem(String password, String confirm) => password == confirm ? null : 'Passwords do not match';
