@@ -103,6 +103,36 @@ android {
     groovy.write_text(g)
 else:
     sys.exit("No app/build.gradle(.kts) found")
+# ---- Firebase (only when google-services.json was restored by CI) ----
+if (android / "app/google-services.json").exists():
+    for sf in (android / "settings.gradle.kts", android / "settings.gradle"):
+        if sf.exists():
+            t = sf.read_text()
+            if "com.google.gms.google-services" not in t:
+                if sf.suffix == ".kts":
+                    t2 = re.sub(r'(id\("com\.android\.application"\)\s+version\s+"[^"]+"\s+apply\s+false)',
+                                r'\1\n    id("com.google.gms.google-services") version "4.4.4" apply false', t, count=1)
+                else:
+                    t2 = re.sub(r'(id\s+"com\.android\.application"\s+version\s+"[^"]+"\s+apply\s+false)',
+                                r'\1\n    id "com.google.gms.google-services" version "4.4.4" apply false', t, count=1)
+                if t2 == t:
+                    sys.exit("Could not add the google-services plugin to " + sf.name)
+                sf.write_text(t2)
+    for af in (kts, groovy):
+        if af.exists():
+            t = af.read_text()
+            if "com.google.gms.google-services" not in t:
+                if af.suffix == ".kts":
+                    t2 = t.replace('id("dev.flutter.flutter-gradle-plugin")', 'id("dev.flutter.flutter-gradle-plugin")\n    id("com.google.gms.google-services")', 1)
+                else:
+                    t2 = t.replace('id "dev.flutter.flutter-gradle-plugin"', 'id "dev.flutter.flutter-gradle-plugin"\n    id "com.google.gms.google-services"', 1)
+                if t2 == t:
+                    sys.exit("Could not apply the google-services plugin in " + af.name)
+                af.write_text(t2)
+    print("Firebase (google-services) enabled.")
+else:
+    print("No google-services.json: building without Firebase (sign-in unavailable).")
+
 # AGP only "recommends" up to the SDK it was tested with; silence that warning for 37.
 gp = android / "gradle.properties"
 props = gp.read_text() if gp.exists() else ""

@@ -2,13 +2,16 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import 'data/repo.dart';
+import 'services/auth_service.dart';
+import 'ui/account_screen.dart';
 import 'ui/group_screen.dart';
 import 'ui/proof_screen.dart';
 
 final navKey = GlobalKey<NavigatorState>();
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await AuthService.init(); // optional cloud sign-in; the app works without it
   runApp(const SplitEasyApp());
 }
 
@@ -168,7 +171,15 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('SplitEasy')),
+      appBar: AppBar(title: const Text('SplitEasy'), actions: [
+        StreamBuilder<bool>(
+            stream: AuthService.signedIn,
+            initialData: AuthService.user != null,
+            builder: (c, snap) => IconButton(
+                icon: Icon(snap.data == true ? Icons.account_circle : Icons.account_circle_outlined),
+                tooltip: 'Account',
+                onPressed: () => Navigator.push(c, MaterialPageRoute(builder: (_) => const AccountScreen())))),
+      ]),
       body: groups.isEmpty
           ? const Center(child: Text('Create your first group'))
           : ListView(children: [
